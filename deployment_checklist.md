@@ -10,10 +10,10 @@
 - [x] scikit-learn installed (`sudo apt-get install python3-sklearn`)
 - [x] Network configured (static IP recommended)
 - [ ] Files copied to Pi:
-  - [ ] `lidar_processor.py`
-  - [ ] `run_processor.sh`
-  - [ ] `config.ini`
-- [ ] Script made executable (`chmod +x run_processor.sh`)
+  - [x] `lidar_processor.py`
+  - [x] `run_processor.sh`
+  - [x] `config.ini`
+- [x] Script made executable (`chmod +x run_processor.sh`)
 
 ### Laptop Setup
 - [x] Python 3.x installed
@@ -21,16 +21,16 @@
   ```bash
   pip install numpy matplotlib scikit-learn
   ```
-- [ ] Files copied to laptop:
-  - [ ] `laptop_receiver.py`
-- [ ] Firewall port 5000 UDP opened (if needed)
-- [ ] Network configured (same subnet as Pi)
+- [ x] Files copied to laptop:
+  - [x] `laptop_receiver.py`
+- [x] Firewall port 5000 UDP opened (if needed)
+- [x] Network configured (same subnet as Pi)
 
 ### Network Setup
 - [x] Raspberry Pi IP address noted: `192.168.1.24/24`
 - [x] Laptop IP address noted: `192.168.137.1`
 - [x] Both devices on same network
-- [ ] Can ping Pi from laptop: `___.___.___.___`
+- [x] Can ping Pi from laptop: `192.168.1.102`
 - [x] Can ping laptop from Pi: `192.168.137.1`
 - [ ] Wired Ethernet preferred over Wi-Fi
 
@@ -58,13 +58,13 @@ DBSCAN: Found 8 clusters
 ```
 
 **Checklist:**
-- [ ] LiDAR initializes successfully
-- [ ] Point clouds captured
-- [ ] RANSAC removes ground (~99% reduction)
-- [ ] Height filter keeps reasonable points
-- [ ] DBSCAN finds clusters (0-15 typically)
-- [ ] Processing time < 50ms
-- [ ] No errors in console
+- [x] LiDAR initializes successfully
+- [x] Point clouds captured
+- [x] RANSAC removes ground (~99% reduction)
+- [x] Height filter keeps reasonable points
+- [x] DBSCAN finds clusters (0-15 typically)
+- [x] Processing time < 50ms
+- [x] No errors in console
 
 **If Issues:**
 - Check LiDAR connection (USB/Ethernet)
@@ -108,16 +108,16 @@ Starting LiDAR processor...
 ```
 
 **Checklist:**
-- [ ] Laptop shows "Listening..." message
-- [ ] Pi shows configuration
-- [ ] Laptop starts receiving frames within 5 seconds
-- [ ] 3D visualization appears on laptop
-- [ ] Point clouds update in real-time
-- [ ] Bounding boxes drawn around clusters
-- [ ] Console shows frame statistics
-- [ ] Receive FPS matches processing FPS (±10%)
-- [ ] No "connection refused" errors
-- [ ] No packet loss warnings
+- [x] Laptop shows "Listening..." message
+- [x] Pi shows configuration
+- [x] Laptop starts receiving frames within 5 seconds
+- [x] 3D visualization appears on laptop
+- [x] Point clouds update in real-time
+- [x] Bounding boxes drawn around clusters
+- [x] Console shows frame statistics
+- [x] Receive FPS matches processing FPS (±10%)
+- [x] No "connection refused" errors
+- [x] No packet loss warnings
 
 **If Issues:**
 - Verify laptop IP address is correct
@@ -464,3 +464,4 @@ _________________________________________________________________
 - Review system architecture (Figure 3.2)
 
 - Check evaluation metrics (Section 3.4)
+
