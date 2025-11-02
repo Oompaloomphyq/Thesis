@@ -3,12 +3,12 @@
 ## Pre-Deployment Setup
 
 ### Raspberry Pi Setup
-- [ ] Raspberry Pi 5 with Ubuntu 24 installed
-- [ ] Livox MID-360 LiDAR connected and tested
-- [ ] Python 3.x installed (`python3 --version`)
-- [ ] NumPy installed (`sudo apt-get install python3-numpy`)
-- [ ] scikit-learn installed (`sudo apt-get install python3-sklearn`)
-- [ ] Network configured (static IP recommended)
+- [x] Raspberry Pi 5 with Ubuntu 24 installed
+- [x] Livox MID-360 LiDAR connected and tested
+- [x] Python 3.x installed (`python3 --version`)
+- [x] NumPy installed (`sudo apt-get install python3-numpy`)
+- [x] scikit-learn installed (`sudo apt-get install python3-sklearn`)
+- [x] Network configured (static IP recommended)
 - [ ] Files copied to Pi:
   - [ ] `lidar_processor.py`
   - [ ] `run_processor.sh`
@@ -16,8 +16,8 @@
 - [ ] Script made executable (`chmod +x run_processor.sh`)
 
 ### Laptop Setup
-- [ ] Python 3.x installed
-- [ ] Required packages installed:
+- [x] Python 3.x installed
+- [x] Required packages installed:
   ```bash
   pip install numpy matplotlib scikit-learn
   ```
@@ -27,11 +27,11 @@
 - [ ] Network configured (same subnet as Pi)
 
 ### Network Setup
-- [ ] Raspberry Pi IP address noted: `___.___.___. ___`
-- [ ] Laptop IP address noted: `___.___.___. ___`
-- [ ] Both devices on same network
-- [ ] Can ping Pi from laptop: `ping <pi-ip>`
-- [ ] Can ping laptop from Pi: `ping <laptop-ip>`
+- [x] Raspberry Pi IP address noted: `192.168.1.24/24`
+- [x] Laptop IP address noted: `192.168.137.1`
+- [x] Both devices on same network
+- [ ] Can ping Pi from laptop: `___.___.___.___`
+- [x] Can ping laptop from Pi: `192.168.137.1`
 - [ ] Wired Ethernet preferred over Wi-Fi
 
 ---
@@ -462,4 +462,5 @@ _________________________________________________________________
 **For thesis-related questions:**
 - Reference Chapter 3 of manuscript
 - Review system architecture (Figure 3.2)
+
 - Check evaluation metrics (Section 3.4)
