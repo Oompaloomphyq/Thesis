@@ -1,0 +1,469 @@
+import { useEffect, useRef, useState } from 'react'
+import * as THREE from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+import { useParking } from '../context/ParkingContext'
+import { useWebSocket } from '../hooks/useWebSocket'
+
+const DEMO_MODE = false
+
+// ── CAM POSITIONS ──────────────────────────────────────────
+const CAM1_POS    = [-2.26, 19.50, -0.45]
+const CAM1_TARGET = [-2.26, -0.72, -0.45]
+const CAM2_POS    = [17.62, 5.30, -0.33]
+const CAM2_TARGET = [2.42, -0.41, -1.16]
+
+// ── LERP SPEED for moving cars (0.0 = no move, 1.0 = instant) ──
+const LERP_SPEED = 1.0
+
+// ── SLOT CONFIG ────────────────────────────────────────────
+const slotConfig = [
+  { id: 'slot_1',  x: -8.2,  z: -1.6, rotationY: Math.PI - Math.PI/4, color: 0xff0000 },
+  { id: 'slot_2',  x: -6.0,  z: -1.7, rotationY: Math.PI - Math.PI/4, color: 0x0000ff },
+  { id: 'slot_3',  x: -3.9,  z: -1.7, rotationY: Math.PI - Math.PI/4, color: 0xffff00 },
+  { id: 'slot_4',  x: -1.9,  z: -1.7, rotationY: Math.PI - Math.PI/4, color: 0x00aa00 },
+  { id: 'slot_5',  x:  0.1,  z: -1.7, rotationY: Math.PI - Math.PI/4, color: 0x222222 },
+  { id: 'slot_6',  x:  2.2,  z: -1.7, rotationY: Math.PI - Math.PI/4, color: 0xeeeeee },
+  { id: 'slot_7',  x:  4.4,  z: -1.7, rotationY: Math.PI - Math.PI/4, color: 0xff6600 },
+  { id: 'slot_8',  x:  6.5,  z: -1.7, rotationY: Math.PI - Math.PI/4, color: 0x8800ff },
+  { id: 'slot_9',  x:  8.5,  z: -1.6, rotationY: Math.PI - Math.PI/4, color: 0x00cccc },
+  { id: 'slot_10', x: 10.9,  z: -1.6, rotationY: Math.PI - Math.PI/4, color: 0xff69b4 },
+  { id: 'slot_11', x:  5.9,  z:  2.8, rotationY: Math.PI/2,           color: 0x8B4513 },
+  { id: 'slot_12', x:  3.1,  z:  2.8, rotationY: Math.PI/2,           color: 0x8b0000 },
+  { id: 'slot_13', x:  0.2,  z:  2.8, rotationY: Math.PI/2,           color: 0xFFD700 },
+  { id: 'slot_14', x: -2.7,  z:  2.8, rotationY: Math.PI/2,           color: 0x0000ff },
+  { id: 'slot_15', x: -5.6,  z:  2.8, rotationY: Math.PI/2,           color: 0xff0000 },
+  { id: 'slot_16', x: -8.4,  z:  2.8, rotationY: Math.PI/2,           color: 0x006400 },
+]
+
+const slotPositions = [
+  { id: 'slot_1',  x: -8.0,  z: -2.1, width: 1.6, depth: 4.2, rotation: -Math.PI/4 },
+  { id: 'slot_2',  x: -5.9,  z: -2.0, width: 1.4, depth: 4.1, rotation: -Math.PI/4 },
+  { id: 'slot_3',  x: -3.9,  z: -1.9, width: 1.4, depth: 4.0, rotation: -Math.PI/4 },
+  { id: 'slot_4',  x: -1.8,  z: -1.9, width: 1.4, depth: 3.9, rotation: -Math.PI/4 },
+  { id: 'slot_5',  x:  0.3,  z: -1.9, width: 1.4, depth: 3.8, rotation: -Math.PI/4 },
+  { id: 'slot_6',  x:  2.5,  z: -1.9, width: 1.4, depth: 3.7, rotation: -Math.PI/4 },
+  { id: 'slot_7',  x:  4.6,  z: -1.9, width: 1.4, depth: 3.7, rotation: -Math.PI/4 },
+  { id: 'slot_8',  x:  6.7,  z: -1.9, width: 1.4, depth: 3.7, rotation: -Math.PI/4 },
+  { id: 'slot_9',  x:  8.8,  z: -1.9, width: 1.4, depth: 3.7, rotation: -Math.PI/4 },
+  { id: 'slot_10', x: 11.4,  z: -2.1, width: 1.6, depth: 4.2, rotation: -Math.PI/4 },
+  { id: 'slot_11', x:  5.9,  z:  2.8, width: 2.6, depth: 1.2, rotation: 0 },
+  { id: 'slot_12', x:  3.1,  z:  2.8, width: 2.7, depth: 1.2, rotation: 0 },
+  { id: 'slot_13', x:  0.2,  z:  2.8, width: 2.7, depth: 1.2, rotation: 0 },
+  { id: 'slot_14', x: -2.7,  z:  2.8, width: 2.7, depth: 1.2, rotation: 0 },
+  { id: 'slot_15', x: -5.6,  z:  2.8, width: 2.7, depth: 1.2, rotation: 0 },
+  { id: 'slot_16', x: -8.4,  z:  2.8, width: 2.6, depth: 1.2, rotation: 0 },
+]
+
+// ── CAR ANIMATOR (for parked cars drive-in animation) ──────
+// ── INIT THREE.JS SCENE ────────────────────────────────────
+function initScene(container, camPos, camTarget, slotMeshMap, carModelRef) {
+  const w = container.clientWidth
+  const h = container.clientHeight
+
+  const scene = new THREE.Scene()
+  scene.background = new THREE.Color(0x1a1a2e)
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.9))
+  const dir = new THREE.DirectionalLight(0xffffff, 1.0)
+  dir.position.set(15, 35, 15)
+  dir.castShadow = true
+  scene.add(dir)
+  scene.add(new THREE.HemisphereLight(0xffffff, 0xcccccc, 0.8))
+
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(200, 200),
+    new THREE.MeshStandardMaterial({ color: 0xeeeeee, roughness: 0.9 })
+  )
+  ground.rotation.x = -Math.PI/2
+  ground.position.y = -0.1
+  scene.add(ground)
+
+  slotPositions.forEach(slot => {
+    const mesh = new THREE.Mesh(
+      new THREE.PlaneGeometry(slot.width, slot.depth),
+      new THREE.MeshStandardMaterial({
+        color: 0x00ff00, transparent: true, opacity: 0.5,
+        side: THREE.DoubleSide,
+        emissive: 0x00ff00, emissiveIntensity: 0.3,
+      })
+    )
+    mesh.rotation.set(-Math.PI/2, 0, slot.rotation)
+    mesh.position.set(slot.x, -0.05, slot.z)
+    scene.add(mesh)
+    if (slotMeshMap) slotMeshMap.set(slot.id, mesh)
+
+    const canvas = document.createElement('canvas')
+    const ctx = canvas.getContext('2d')
+    canvas.width = 256; canvas.height = 128
+    ctx.fillStyle = '#fcfcfc'
+    ctx.font = 'bold 80px Arial'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(slot.id.split('_')[1], 128, 64)
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true })
+    )
+    sprite.position.set(slot.x, 1.0, slot.z)
+    sprite.scale.set(1.5, 0.75, 1)
+    scene.add(sprite)
+  })
+
+  const camera = new THREE.PerspectiveCamera(75, w/h, 0.1, 1000)
+  camera.position.set(...camPos)
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true })
+  renderer.setSize(w, h)
+  renderer.setPixelRatio(window.devicePixelRatio)
+  renderer.shadowMap.enabled = true
+  container.appendChild(renderer.domElement)
+
+  const controls = new OrbitControls(camera, renderer.domElement)
+  controls.enableDamping = false
+  controls.minDistance = 5
+  controls.maxDistance = 150
+  controls.maxPolarAngle = Math.PI/2
+  controls.target.set(...camTarget)
+  controls.update()
+
+  const loader = new GLTFLoader()
+  loader.load('/models/parking_layout.glb', gltf => {
+    const model = gltf.scene
+    const box   = new THREE.Box3().setFromObject(model)
+    const size  = box.getSize(new THREE.Vector3())
+    const center = box.getCenter(new THREE.Vector3())
+    const s = 45 / Math.max(size.x, size.y, size.z)
+    model.scale.set(s, s, s)
+    model.position.x = -center.x * s + 5
+    model.position.z = -center.z * s
+    scene.add(model)
+  })
+
+  if (!carModelRef.current) {
+    loader.load('/models/car.glb', gltf => {
+      const orig   = gltf.scene
+      const box    = new THREE.Box3().setFromObject(orig)
+      const size   = box.getSize(new THREE.Vector3())
+      const carLen = Math.max(size.x, size.z)
+      carModelRef.current = { orig, carLen }
+    })
+  }
+
+  let animId
+  const animate = () => {
+    animId = requestAnimationFrame(animate)
+    controls.update()
+    renderer.render(scene, camera)
+  }
+  animate()
+
+  const resizeObserver = new ResizeObserver(() => {
+    const rw = container.clientWidth
+    const rh = container.clientHeight
+    if (!rw || !rh) return
+    camera.aspect = rw / rh
+    camera.updateProjectionMatrix()
+    renderer.setSize(rw, rh)
+  })
+  resizeObserver.observe(container)
+
+  return { scene, camera, renderer, controls, animId, resizeObserver }
+}
+
+function destroyScene(sceneRef, container) {
+  if (!sceneRef.current) return
+  const { animId, resizeObserver, renderer } = sceneRef.current
+  cancelAnimationFrame(animId)
+  resizeObserver.disconnect()
+  if (renderer && container && renderer.domElement.parentNode === container) {
+    container.removeChild(renderer.domElement)
+    renderer.dispose()
+  }
+  sceneRef.current = null
+}
+
+// ── MAIN COMPONENT ─────────────────────────────────────────
+export default function ParkingScene() {
+  const mountMainRef   = useRef(null)
+  const mountPipRef    = useRef(null)
+  const cam1SceneRef   = useRef(null)
+  const cam2SceneRef   = useRef(null)
+  const slotMeshesCam1 = useRef(new Map())
+  const slotMeshesCam2 = useRef(new Map())
+  const carModelRef    = useRef(null)
+  const parkedCars     = useRef(new Map())   // slotId → { car1, car2 }
+  const prevOccupied   = useRef(new Set())
+  const pipIsTopRef    = useRef(false)
+
+  // Moving cars: Map of id → { car1, car2, targetX, targetZ, currentX, currentZ }
+  const movingCarMeshes = useRef(new Map())
+
+  const [mainLabel, setMainLabel] = useState(' CAM 2 — Side View')
+  const [pipLabel,  setPipLabel]  = useState(' CAM 1 — Top View')
+
+  const { slots, movingCars } = useParking()
+  useWebSocket()
+
+  // ── Helper: make a car mesh clone ──────────────────────────
+  const makeCarMesh = (color) => {
+    if (!carModelRef.current) return null
+    const { orig, carLen } = carModelRef.current
+    const scale = (0.55 * 4.0) / carLen
+    const c     = new THREE.Color(color)
+    const clone = orig.clone()
+    clone.scale.set(scale, scale, scale)
+    clone.traverse(child => {
+      if (child.isMesh) {
+        child.material = child.material.clone()
+        child.material.color         = c
+        child.material.emissive      = c
+        child.material.emissiveIntensity = 0.15
+        child.castShadow = true
+      }
+    })
+    return clone
+  }
+
+  // ── Spawn parked car instantly at slot position ─────────────
+  const spawnCar = (slotId) => {
+    if (!carModelRef.current) return
+    if (parkedCars.current.has(slotId)) return
+    const cfg = slotConfig.find(s => s.id === slotId)
+    if (!cfg) return
+    let car1 = null, car2 = null
+    if (cam1SceneRef.current) {
+      car1 = makeCarMesh(cfg.color)
+      if (car1) {
+        car1.position.set(cfg.x, 0, cfg.z)
+        car1.rotation.y = cfg.rotationY
+        cam1SceneRef.current.scene.add(car1)
+      }
+    }
+    if (cam2SceneRef.current) {
+      car2 = makeCarMesh(cfg.color)
+      if (car2) {
+        car2.position.set(cfg.x, 0, cfg.z)
+        car2.rotation.y = cfg.rotationY
+        cam2SceneRef.current.scene.add(car2)
+      }
+    }
+    parkedCars.current.set(slotId, { car1, car2 })
+  }
+
+  // ── Remove parked car instantly ─────────────────────────────
+  const removeCar = (slotId) => {
+    const entry = parkedCars.current.get(slotId)
+    if (!entry) return
+    const { car1, car2 } = entry
+    if (car1 && cam1SceneRef.current) cam1SceneRef.current.scene.remove(car1)
+    if (car2 && cam2SceneRef.current) cam2SceneRef.current.scene.remove(car2)
+    parkedCars.current.delete(slotId)
+  }
+
+  // ── React to slot updates ───────────────────────────────────
+  useEffect(() => {
+    if (!slots || slots.length === 0) return
+    const currOccupied = new Set(slots.filter(s => s.occupied).map(s => s.id))
+    ;[slotMeshesCam1, slotMeshesCam2].forEach(ref => {
+      slots.forEach(slot => {
+        const mesh = ref.current.get(slot.id)
+        if (mesh) {
+          mesh.material.color.set(slot.occupied ? 0xff4444 : 0x00ff00)
+          mesh.material.emissive.set(slot.occupied ? 0xff0000 : 0x00ff00)
+        }
+      })
+    })
+    currOccupied.forEach(id => {
+      if (!prevOccupied.current.has(id)) spawnCar(id)
+    })
+    prevOccupied.current.forEach(id => {
+      if (!currOccupied.has(id)) removeCar(id)
+    })
+    prevOccupied.current = currOccupied
+  }, [slots])
+
+  // ── React to moving cars updates ────────────────────────────
+  useEffect(() => {
+    if (!cam1SceneRef.current && !cam2SceneRef.current) return
+
+    const incomingIds = new Set(movingCars.map(c => c.id))
+
+    // Remove cars that are no longer in the list
+    movingCarMeshes.current.forEach((entry, id) => {
+      if (!incomingIds.has(id)) {
+        if (entry.car1 && cam1SceneRef.current) cam1SceneRef.current.scene.remove(entry.car1)
+        if (entry.car2 && cam2SceneRef.current) cam2SceneRef.current.scene.remove(entry.car2)
+        movingCarMeshes.current.delete(id)
+      }
+    })
+
+    // Add or update moving cars
+    movingCars.forEach(car => {
+      const { id, scene_x, scene_z } = car
+
+      if (!movingCarMeshes.current.has(id)) {
+        // New moving car — spawn at its current position
+        let car1 = null, car2 = null
+        if (cam1SceneRef.current) {
+          car1 = makeCarMesh(0xffffff)  // white = moving car
+          if (car1) {
+            car1.position.set(scene_x, 0, scene_z)
+            car1.rotation.y = 0
+            cam1SceneRef.current.scene.add(car1)
+          }
+        }
+        if (cam2SceneRef.current) {
+          car2 = makeCarMesh(0xffffff)
+          if (car2) {
+            car2.position.set(scene_x, 0, scene_z)
+            car2.rotation.y = 0
+            cam2SceneRef.current.scene.add(car2)
+          }
+        }
+        movingCarMeshes.current.set(id, {
+          car1, car2,
+          currentX: scene_x,
+          currentZ: scene_z,
+          prevX:    scene_x,
+          prevZ:    scene_z,
+          targetX:  scene_x,
+          targetZ:  scene_z,
+          lastRotY: 0,
+        })
+      } else {
+        // Existing moving car — update target position
+        const entry   = movingCarMeshes.current.get(id)
+        entry.targetX = scene_x
+        entry.targetZ = scene_z
+      }
+    })
+  }, [movingCars])
+
+  // ── Lerp moving cars every animation frame ──────────────────
+  useEffect(() => {
+    let rafId
+
+    const lerp = () => {
+      movingCarMeshes.current.forEach((entry) => {
+        // Store position before moving
+        entry.prevX = entry.currentX
+        entry.prevZ = entry.currentZ
+
+        // Smooth interpolation toward target position
+        entry.currentX += (entry.targetX - entry.currentX) * LERP_SPEED
+        entry.currentZ += (entry.targetZ - entry.currentZ) * LERP_SPEED
+
+        // Direction = actual movement this frame (always correct regardless of LERP_SPEED)
+        const dx = entry.currentX - entry.prevX
+        const dz = entry.currentZ - entry.prevZ
+        const rotY = (Math.abs(dx) > 0.001 || Math.abs(dz) > 0.001)
+          ? Math.atan2(dx, dz)
+          : entry.lastRotY
+        entry.lastRotY = rotY
+
+        if (entry.car1) {
+          entry.car1.position.x = entry.currentX
+          entry.car1.position.z = entry.currentZ
+          entry.car1.rotation.y = rotY
+        }
+        if (entry.car2) {
+          entry.car2.position.x = entry.currentX
+          entry.car2.position.z = entry.currentZ
+          entry.car2.rotation.y = rotY
+        }
+      })
+      rafId = requestAnimationFrame(lerp)
+    }
+
+    rafId = requestAnimationFrame(lerp)
+    return () => cancelAnimationFrame(rafId)
+  }, [])
+
+  // ── Init both scenes ────────────────────────────────────────
+  useEffect(() => {
+    const mainContainer = mountMainRef.current
+    const pipContainer  = mountPipRef.current
+    if (!mainContainer || !pipContainer) return
+
+    const t = setTimeout(() => {
+      cam2SceneRef.current = initScene(
+        mainContainer, CAM2_POS, CAM2_TARGET,
+        slotMeshesCam2.current, carModelRef
+      )
+      cam1SceneRef.current = initScene(
+        pipContainer, CAM1_POS, CAM1_TARGET,
+        slotMeshesCam1.current, carModelRef
+      )
+    }, 100)
+
+    return () => {
+      clearTimeout(t)
+      destroyScene(cam1SceneRef, pipContainer)
+      destroyScene(cam2SceneRef, mainContainer)
+    }
+  }, [])
+
+  const handleSwap = () => {
+    const cam1  = cam1SceneRef.current?.camera
+    const cam2  = cam2SceneRef.current?.camera
+    const ctrl1 = cam1SceneRef.current?.controls
+    const ctrl2 = cam2SceneRef.current?.controls
+    if (!cam1 || !cam2) return
+    if (pipIsTopRef.current) {
+      cam2.position.set(...CAM2_POS); ctrl2.target.set(...CAM2_TARGET)
+      cam1.position.set(...CAM1_POS); ctrl1.target.set(...CAM1_TARGET)
+      setMainLabel(' CAM 2 — Side View')
+      setPipLabel(' CAM 1 — Top View')
+      pipIsTopRef.current = false
+    } else {
+      cam2.position.set(...CAM1_POS); ctrl2.target.set(...CAM1_TARGET)
+      cam1.position.set(...CAM2_POS); ctrl1.target.set(...CAM2_TARGET)
+      setMainLabel(' CAM 1 — Top View')
+      setPipLabel(' CAM 2 — Side View')
+      pipIsTopRef.current = true
+    }
+    ctrl1.update(); ctrl2.update()
+  }
+
+  return (
+    <div style={{ position: 'relative', flex: 1, width: '100%', height: '100%', minWidth: 0 }}>
+      <div ref={mountMainRef} style={{ width: '100%', height: '100%', display: 'block', overflow: 'hidden' }} />
+      <div style={{
+        position: 'absolute', top: 10, left: 10, zIndex: 20,
+        background: 'rgba(6,182,212,0.85)', color: 'white',
+        padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 'bold',
+        pointerEvents: 'none',
+      }}>
+        {mainLabel}
+      </div>
+      <div
+        onClick={handleSwap}
+        style={{
+          position: 'absolute', bottom: 16, right: 16,
+          width: '30%', height: '28%', zIndex: 20,
+          borderRadius: 10, overflow: 'hidden',
+          border: '2px solid #06b6d4', cursor: 'pointer',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+        }}
+      >
+        <div ref={mountPipRef} style={{ width: '100%', height: '100%' }} />
+        <div style={{
+          position: 'absolute', top: 6, left: 6,
+          background: 'rgba(6,182,212,0.85)', color: 'white',
+          padding: '2px 8px', borderRadius: 5, fontSize: 11, fontWeight: 'bold',
+          pointerEvents: 'none',
+        }}>
+          {pipLabel}
+        </div>
+        <div style={{
+          position: 'absolute', bottom: 6, right: 6,
+          background: 'rgba(0,0,0,0.6)', color: '#06b6d4',
+          padding: '2px 8px', borderRadius: 5, fontSize: 10,
+          pointerEvents: 'none',
+        }}>
+          Click to swap
+        </div>
+      </div>
+    </div>
+  )
+}
